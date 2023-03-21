@@ -34,7 +34,7 @@ int MPI_Send(const void *buf_, int count, MPI_Datatype datatype, int dest, int t
 	int frag_count = count / frag_size;
 	// Get the size in bytes of the datatype to be transmitted
 	int datatype_size = 0;
-	MPI_Type_size(datatype, &datatype_size)
+	MPI_Type_size(datatype, &datatype_size);
 	// Counts the remaining items to be sent 
 	int remaining_count = count;
 	// Array of MPI requests
@@ -44,7 +44,8 @@ int MPI_Send(const void *buf_, int count, MPI_Datatype datatype, int dest, int t
 	int sub_count = 0;
 	char *sub_buf = 0;
 	// Loop through the fragments
-	for(int i = 0; i < frag_count; i++){
+	int i = 0;
+	for(i = 0; i < frag_count; i++){
 		// Compute the size of the current fragment (the last fragment can be longer than the fragment size)
 		sub_count = (i == frag_count -1) ? remaining_count : frag_size;
 		// Adjust the pointer to the start of the current fragment
@@ -71,7 +72,7 @@ int MPI_Recv(void *buf_, int count, MPI_Datatype datatype, int source, int tag, 
 	int frag_count = count / frag_size;
 	// Get the size in bytes of the datatype to be transmitted
 	int datatype_size = 0;
-	MPI_Type_size(datatype, &datatype_size)
+	MPI_Type_size(datatype, &datatype_size);
 	// Counts the remaining items to be sent 
 	int remaining_count = count;
 	// Array of MPI requests
@@ -81,7 +82,8 @@ int MPI_Recv(void *buf_, int count, MPI_Datatype datatype, int source, int tag, 
 	int sub_count = 0;
 	char *sub_buf = 0;
 	// Loop through the fragments
-	for(int i = 0; i < frag_count; i++){
+	int i = 0;
+	for(i = 0; i < frag_count; i++){
 		// Compute the size of the current fragment (the last fragment can be longer than the fragment size)
 		sub_count = (i == frag_count -1) ? remaining_count : frag_size;
 		// Adjust the pointer to the start of the current fragment
@@ -111,8 +113,8 @@ int MPI_Sendrecv(const void *sendbuf_, int sendcount, MPI_Datatype sendtype, int
 	// Get the size in bytes of the datatype to be transmitted
 	int send_datatype_size = 0;
 	int recv_datatype_size = 0;
-	MPI_Type_size(sendtype, &send_datatype_size)
-	MPI_Type_size(recvtype, &recv_datatype_size)
+	MPI_Type_size(sendtype, &send_datatype_size);
+	MPI_Type_size(recvtype, &recv_datatype_size);
 	// Counts the remaining items to be sent / received 
 	int send_remaining_count = sendcount;
 	int recv_remaining_count = recvcount;
@@ -126,7 +128,8 @@ int MPI_Sendrecv(const void *sendbuf_, int sendcount, MPI_Datatype sendtype, int
 	int frags_sent = 0;
 	int frags_received = 0;
 	// Loop through the fragments
-	for(int i = 0; i < (send_frag_count + recv_frag_count); i++){
+	int i = 0;
+	for(i = 0; i < (send_frag_count + recv_frag_count); i++){
 		// Perform a send
 		if(((i % 2 == 0) && (frags_sent != send_frag_count)) || frags_received == recv_frag_count){
 			// Compute the size of the current fragment (the last fragment can be longer than the fragment size)
@@ -142,7 +145,7 @@ int MPI_Sendrecv(const void *sendbuf_, int sendcount, MPI_Datatype sendtype, int
 		// Perform a receive
 		else{
 			// Compute the size of the current fragment (the last fragment can be longer than the fragment size)
-			sub_count = (frags_received == (recv_frag_count - 1)) ? remaining_recv_count : frag_size;
+			sub_count = (frags_received == (recv_frag_count - 1)) ? recv_remaining_count : frag_size;
 			// Adjust the pointer to the start of the current fragment
 			sub_buf = recv_buf + (i * frag_size * recv_datatype_size);	
 			// Receive a fragment
