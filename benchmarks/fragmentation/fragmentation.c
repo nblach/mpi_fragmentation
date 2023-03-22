@@ -17,17 +17,20 @@ void read_env(){
 }
 
 int MPI_Init(int *argc, char ***argv){
+	printf("[FRAG] Init has been called");
 	read_env();
 	return PMPI_Init(argc, argv);
 }
 
 int MPI_Init_thread( int *argc, char ***argv, int required, int *provided ){
+	printf("[FRAG] Init-Thread has been called");
 	read_env();
 	return PMPI_Init_thread(argc, argv, required, provided);
 }
 
 // Wrapper for Send that uses fragmentation
 int MPI_Send(const void *buf_, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
+	printf("[FRAG] Send  has been called");
 	// Convert void buffer to char buffer
 	char *buf = (char*) buf_;
 	// Compute number of fragments needed to send that data
@@ -66,6 +69,7 @@ int MPI_Send(const void *buf_, int count, MPI_Datatype datatype, int dest, int t
 
 // Wrapper for Receive that uses fragmentation
 int MPI_Recv(void *buf_, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Status *status){
+	printf("[FRAG] Recv has been called");
 	// Convert void buffer to char buffer
 	char *buf = (char*) buf_;
 	// Compute number of fragments needed to send that data
@@ -104,6 +108,7 @@ int MPI_Recv(void *buf_, int count, MPI_Datatype datatype, int source, int tag, 
 int MPI_Sendrecv(const void *sendbuf_, int sendcount, MPI_Datatype sendtype, int dest, int sendtag,
 					   void *recvbuf_, int recvcount, MPI_Datatype recvtype, int source, int recvtag, 
 					   MPI_Comm comm, MPI_Status * status){
+	printf("[FRAG] SendRecv has been called");
 	// Convert void buffer to char buffer
 	char *send_buf = (char*) sendbuf_;
 	char *recv_buf = (char*) recvbuf_;
@@ -161,4 +166,114 @@ int MPI_Sendrecv(const void *sendbuf_, int sendcount, MPI_Datatype sendtype, int
 	}
 	// Wait until all fragments have been sent.
 	return PMPI_Waitall(send_frag_count + recv_frag_count, reqs, MPI_STATUSES_IGNORE);
+}
+
+// Wrapper for Isend that uses fragmentation
+int MPI_Isend(const void *buf_, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm, MPI_Request* main_request){
+	printf("[FRAG] Isend  has been called");
+	// Convert void buffer to char buffer
+	char *buf = (char*) buf_;
+	// Compute number of fragments needed to send that data
+	int frag_count = count / frag_size;
+	// Get the size in bytes of the datatype to be transmitted
+	int datatype_size = 0;
+	MPI_Type_size(datatype, &datatype_size);
+	// Counts the remaining items to be sent 
+	int remaining_count = count;
+	// Array of MPI requests
+	MPI_Request* sub_request_array = malloc(frag_count * sizeof(MPI_Request));
+	// Create a ghost request
+	main_request->is_ghost_request = true;
+	main_request->sub_request_count = frag_count;
+	main_request->pointer_to_sub_requests = (size_t)sub_request_arry;
+	// Stuff used inside the loop
+	int r = MPI_SUCCESS;
+	int sub_count = 0;
+	char *sub_buf = 0;
+	// Loop through the fragments
+	int i = 0;
+	for(i = 0; i < frag_count; i++){
+		// Compute the size of the current fragment (the last fragment can be longer than the fragment size)
+		sub_count = (i == frag_count -1) ? remaining_count : frag_size;
+		// Adjust the pointer to the start of the current fragment
+		sub_buf = buf + (i * frag_size * datatype_size);	
+		// Send current fragment
+		r = PMPI_Isend(sub_buf, sub_count, datatype, dest, tag, comm, &(sub_request_array[i]));
+		// Handle return value of send
+		if(r != MPI_SUCCESS){
+			return r;
+		}
+		// Update number of remaining items to be transmitted
+		remaining_count -= frag_size;
+	}
+	// Wait until all fragments have been sent.
+	return 0;
+}
+
+// Wrapper for Isend that uses fragmentation
+int MPI_Irecv(const void *buf_, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm, MPI_Request* main_request){
+	printf("[FRAG] Isend  has been called");
+	// Convert void buffer to char buffer
+	char *buf = (char*) buf_;
+	// Compute number of fragments needed to send that data
+	int frag_count = count / frag_size;
+	// Get the size in bytes of the datatype to be transmitted
+	int datatype_size = 0;
+	MPI_Type_size(datatype, &datatype_size);
+	// Counts the remaining items to be sent 
+	int remaining_count = count;
+	// Array of MPI requests
+	MPI_Request* sub_request_array = malloc(frag_count * sizeof(MPI_Request));
+	// Create a ghost request
+	main_request->is_ghost_request = true;
+	main_request->sub_request_count = frag_count;
+	main_request->pointer_to_sub_requests = (size_t)sub_request_arry;
+	// Stuff used inside the loop
+	int r = MPI_SUCCESS;
+	int sub_count = 0;
+	char *sub_buf = 0;
+	// Loop through the fragments
+	int i = 0;
+	for(i = 0; i < frag_count; i++){
+		// Compute the size of the current fragment (the last fragment can be longer than the fragment size)
+		sub_count = (i == frag_count -1) ? remaining_count : frag_size;
+		// Adjust the pointer to the start of the current fragment
+		sub_buf = buf + (i * frag_size * datatype_size);	
+		// Send current fragment
+		r = PMPI_Irecv(sub_buf, sub_count, datatype, dest, tag, comm, &(sub_request_array[i]));
+		// Handle return value of send
+		if(r != MPI_SUCCESS){
+			return r;
+		}
+		// Update number of remaining items to be transmitted
+		remaining_count -= frag_size;
+	}
+	// Wait until all fragments have been sent.
+	return 0;
+}
+
+// TODO: Currently, we do nothing with the statue - is that a problem?
+int MPI_Wait(MPI_Request *request, MPI_Status *status){
+	if(request->is_ghost_request){
+		return PMPI_Waitall(request->sub_request_count, (MPI_Request*)(request->pointer_to_sub_requests), MPI_STATUSES_IGNORE);
+		free(request->pointer_to_sub_requests);
+	}
+	else{
+		return PMPI_Wait(request, MPI_STATUS_IGNORE);
+	}
+}
+
+// TODO: Currently, we do nothing with the statue - is that a problem?
+int MPI_Waitall(int count, MPI_Request *request, MPI_Status *status){
+	int i = 0;
+	for(i = 0; i < count; i++){
+		if(request[i].is_ghost_request){
+			PMPI_Waitall(requests[i].sub_request_count, (MPI_Request*)(requests[i].pointer_to_sub_requests), MPI_STATUSES_IGNORE);
+			free(requests[i].pointer_to_sub_requests);
+		}
+		else{
+			PMPI_Wait(request[i], MPI_STATUS_IGNORE);
+		}
+	}
+	return 0;
 }
