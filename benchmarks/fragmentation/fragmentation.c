@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 static unsigned int frag_size;
 
@@ -185,7 +186,7 @@ int MPI_Isend(const void *buf_, int count, MPI_Datatype datatype, int dest, int 
 	// Create a ghost request
 	main_request->is_ghost_request = true;
 	main_request->sub_request_count = frag_count;
-	main_request->pointer_to_sub_requests = (size_t)sub_request_arry;
+	main_request->pointer_to_sub_requests = (size_t)sub_request_array;
 	// Stuff used inside the loop
 	int r = MPI_SUCCESS;
 	int sub_count = 0;
@@ -210,7 +211,7 @@ int MPI_Isend(const void *buf_, int count, MPI_Datatype datatype, int dest, int 
 	return 0;
 }
 
-// Wrapper for Isend that uses fragmentation
+// Wrapper for Irecv that uses fragmentation
 int MPI_Irecv(const void *buf_, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm, MPI_Request* main_request){
 	printf("[FRAG] Isend  has been called");
 	// Convert void buffer to char buffer
@@ -227,7 +228,7 @@ int MPI_Irecv(const void *buf_, int count, MPI_Datatype datatype, int dest, int 
 	// Create a ghost request
 	main_request->is_ghost_request = true;
 	main_request->sub_request_count = frag_count;
-	main_request->pointer_to_sub_requests = (size_t)sub_request_arry;
+	main_request->pointer_to_sub_requests = (size_t)sub_request_arraay;
 	// Stuff used inside the loop
 	int r = MPI_SUCCESS;
 	int sub_count = 0;
@@ -264,7 +265,7 @@ int MPI_Wait(MPI_Request *request, MPI_Status *status){
 }
 
 // TODO: Currently, we do nothing with the statue - is that a problem?
-int MPI_Waitall(int count, MPI_Request *request, MPI_Status *status){
+int MPI_Waitall(int count, MPI_Request *requests, MPI_Status *status){
 	int i = 0;
 	for(i = 0; i < count; i++){
 		if(request[i].is_ghost_request){
@@ -272,7 +273,7 @@ int MPI_Waitall(int count, MPI_Request *request, MPI_Status *status){
 			free(requests[i].pointer_to_sub_requests);
 		}
 		else{
-			PMPI_Wait(request[i], MPI_STATUS_IGNORE);
+			PMPI_Wait(requests[i], MPI_STATUS_IGNORE);
 		}
 	}
 	return 0;
